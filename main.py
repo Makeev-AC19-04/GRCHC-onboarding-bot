@@ -10,6 +10,8 @@ class Action():
     def __init__(self):
         self.setName=False
         self.blocked=False
+        self.stopped=True
+        self.working=False
 
 class User():
     def __init__(self):
@@ -22,19 +24,25 @@ def CheckUser(): # Функция проверки на право пользо�
     pass
 
 def main(message):
-    global action
+    global action, user
     block_1(message)
-    if action.setName == False:
-        bot.send_message(message.chat.id, 'Следующая функция')
-    pass
+    while action.stopped:
+        time.sleep(1)
+#if action.stopped == False:
+    bot.send_message(message.chat.id, 'Следующая функция')
+    time.sleep(5)
+    bot.send_message(message.chat.id, 'Еще функция')
 
 @bot.message_handler(commands=['start'])
 def welcome(message):
-    bot.send_message(message.chat.id,
-                     "Привет {0.first_name}!\nЯ - <b>{1.first_name}</b>, создан помочь тебе адаптироваться в нашей компании!".format(
-                         message.from_user, bot.get_me()),
-                     parse_mode='html')#, reply_markup=mainMenu)
-    main(message)
+    global action
+    if action.working==False:
+        bot.send_message(message.chat.id,
+                         "Привет {0.first_name}!\nЯ - <b>{1.first_name}</b>, создан помочь тебе адаптироваться в нашей компании!".format(
+                             message.from_user, bot.get_me()),
+                         parse_mode='html')#, reply_markup=mainMenu)
+        action.working=True
+        main(message)
 
 
 @bot.message_handler(commands=['setname'])
@@ -53,22 +61,23 @@ def message_handler(message):
         message_set_name = 'Приятно познакомиться, ' + user.name + '!\nДля редактирования имени введи /setname'
         bot.send_message(chat_id=message.chat.id, text=message_set_name)
         action.setName = False
+        action.stopped = False
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     global user, action
     message_set_name = ''
-    #try:
+    action.stopped = True
     if call.message:
         if call.data == 'as in telegram':
             user.name = call.from_user.first_name
             message_set_name = 'Приятно познакомиться, ' + user.name + '!\nДля редактирования имени введи /setname'
+            action.stopped = False
         elif call.data == 'new name':
             message_set_name = 'Введи новое имя'
             action.setName = True
         # remove inline buttons
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=message_set_name.format(call.message.from_user, bot.get_me()),
                               parse_mode='html',reply_markup=None)
-
 
 bot.polling(none_stop=True)
