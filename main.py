@@ -36,12 +36,16 @@ def welcome(message):
         bot.send_message(message.chat.id, 'Вы HR, добавьте сотрудника с помощью '
                                           'специальной команды')
     elif role == 'user':
-        users[message.from_user.id]=User()
-        bot.send_message(message.chat.id,
-                         "Привет!\nЯ - <b>{1.first_name}</b>, создан помочь тебе адаптироваться в нашей компании!".format(
-                             message.from_user, bot.get_me()),
-                         parse_mode='html')
-        main(message)
+        if sql_requests.has_started(message) == 0:
+            sql_requests.set_started(message)
+            users[message.from_user.id]=User()
+            bot.send_message(message.chat.id,
+                             "Привет!\nЯ - <b>{1.first_name}</b>, создан помочь тебе адаптироваться в нашей компании!".format(
+                                 message.from_user, bot.get_me()),
+                             parse_mode='html')
+            main(message)
+        else:
+            bot.send_message(message.chat.id, 'Бот уже запущен: ')
     else:
         bot.send_message(message.chat.id, 'Простите, у вас нет права'
                                           'пользоваться этим ботом')
