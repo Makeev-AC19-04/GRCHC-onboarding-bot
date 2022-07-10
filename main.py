@@ -7,28 +7,22 @@ import re
 token = '5570755905:AAHG6lllgMm8rOBHrm2sLHN9pp487BZh_Mk' #токен бота
 bot = telebot.TeleBot(token)
 
-class Action():
+class User(): # Класс пользователя
     def __init__(self):
         self.setName=False
-        self.blocked=False
-        self.stopped=True
-        self.hrWriting=False
+        self.name = ''
+        self.stopped=False
         self.doingSurvey=False
 
-class User():
-    def __init__(self):
-        self.name = ''
-
-user = User()
-action = Action()
+users = {} # Cловарь пользователей
 
 def CheckUser(): # Функция проверки на право пользователя использовать бота
     pass
 
 def main(message):
-    global action, user
+    global users
     block_1(message)
-    while action.stopped:
+    while users[message.from_user.id].stopped:
         time.sleep(1)
 #if action.stopped == False:
     bot.send_message(message.chat.id, 'Следующая функция')
@@ -37,7 +31,7 @@ def main(message):
 
 @bot.message_handler(commands=['start'])
 def welcome(message):
-    global action
+    global users
     with connect(
             host="localhost",
             user="root",
@@ -45,32 +39,33 @@ def welcome(message):
     ) as connection:
         #check
         pass
+    users[message.from_user.id]=User()
     bot.send_message(message.chat.id,
-                     "Привет {0.first_name}!\nЯ - <b>{1.first_name}</b>, создан помочь тебе адаптироваться в нашей компании!".format(
+                     "Привет!\nЯ - <b>{1.first_name}</b>, создан помочь тебе адаптироваться в нашей компании!".format(
                          message.from_user, bot.get_me()),
                      parse_mode='html')#, reply_markup=mainMenu)
     main(message)
 
 @bot.message_handler(commands=['setname'])
 def block_1(message):
-    global action
+    global users
     markup = types.InlineKeyboardMarkup()
     item1 = types.InlineKeyboardButton("Как в телеграмме", callback_data='as in telegram')
     item2 = types.InlineKeyboardButton("Ввести новое", callback_data='new name')
     markup.row(item1, item2)
     bot.send_message(message.chat.id, 'Как я смогу к тебе обращаться?', reply_markup=markup)
-    action.stopped=True
+    users[message.from_user.id].stopped=True
 
 @bot.message_handler(commands=['survey'])
 def survey_1(message):
-    global action
+    global users
     markup = types.InlineKeyboardMarkup()
     item1 = types.InlineKeyboardButton("Начать", callback_data='start survey')
     item2 = types.InlineKeyboardButton("Спасибо, нет", callback_data='cancel survey')
     markup.row(item1, item2)
     bot.send_message(message.chat.id, 'Поздравляем с первым рабочим днем в нашей'
                                       'компании! Пожалуйста, пройдите опрос', reply_markup=markup)
-    while action.stopped:
+    while users[message.from_user.id].stopped:
         time.sleep(1)
     bot.send_message(message.chat.id, 'Спасибо за ответы')
 
@@ -82,57 +77,68 @@ def splitMessage(msg):
     for i in msg:
         if i != '':
             tosql += "'" + str(i) + "',"
-    return tosql
 
-def add_hr(message):
+    return tosql[:-1]
+
+def add_hr(message): # Добавление hr в БД
     split_msg = re.split(",|:|V<S<=2hjr/ptgQ=", message.text)
     response = ''
-    tosql = splitMessage(split_msg)
-    tosql += "'@" + str(message.from_user.username) + "'," + str(message.from_user.id)
+    tosql = "'@" + str(message.from_user.username) + "'," + splitMessage(split_msg)
     with connect(host="localhost", user="root", password="54321") as connection:
-        addtobdcommand = 'INSERT INTO data_based_bot_rhs.hr ' \
-                         '(Recruiter_Name,recruiter_mail,Phone,subdivision_idSubdivision,tg_name,tg_id) ' \
+        addtobdcommand = 'INSERT INTO botdb.hr ' \
+                         '(tg_Name_HR,HR_name,recruiter_mail,Phone,_id_Subd_hr) ' \
                          'VALUES (' + tosql + ");"
         with connection.cursor() as cursor:
             try:
                 cursor.execute(addtobdcommand)
                 connection.commit()  # Подтверждение изменений в БД
             except Error as error:
-                response = 'Произошла ошибка, проверьте правильность введенных данных:\n' + str(error)
+                response = 'Произошла ошибка, проверьте правильность введенных данных:\n' + str(error) + ' ' + tosql
             else:
-                response = 'Запись добавлена' + tosql
-    bot.send_message(chat_id=message.chat.id, text=str(response))
+                response = 'Запись добавлена'
+    bot.send_message(chat_id=message.chat.id, text=response)
 
 def set_name(message):
-    global user, action
-    user.name = message.text
-    message_set_name = 'Приятно познакомиться, ' + user.name + '!\nДля редактирования имени введи /setname'
+    global users
+    users[message.from_user.id].name = message.text
+    message_set_name = 'Приятно познакомиться, ' + users[message.from_user.id].name + '!\nДля редактирования имени введи /setname'
     bot.send_message(chat_id=message.chat.id, text=message_set_name)
-    action.setName = False
-    action.stopped = False
+    users[message.from_user.id].setName = False
+    users[message.from_user.id].stopped = False
 
 def add_user(message):
     response = '';
     isHr=0
     with connect(host="localhost", user="root", password="54321") as connection:
-        checkHR = 'SELECT EXISTS(SELECT * FROM data_based_bot_rhs.hr ' \
-                         'WHERE tg_id = ' + str(message.from_user.id) + ');'
+        checkHR = 'SELECT EXISTS(SELECT * FROM botdb.hr ' \
+                         "WHERE tg_Name_HR = '@" + str(message.from_user.username) + "');"
         with connection.cursor() as cursor:
-            cursor.execute(checkHR)
+            cursor.execute(checkHR) # Проверка, является ли тот кто добавляет человека эйчаром
             isHr = cursor.fetchall()[0][0]
-    if isHr == 1:
-        response = 'Вы HR'
+    if isHr == 1: # Формирование ответа в зависимости от того является ли человек эйчаром
+        tg_name = message.text.replace('/>:swgPDGq:3Ce ', '')
+        response = str(tg_name)
+        with connect(host="localhost", user="root", password="54321") as connection:
+            addUser = "INSERT INTO botdb.user (tg_Name, key_id_subd, started, id_HR) \
+            VALUES ('" + tg_name + "'," + "(select _id_Subd_hr from botdb.hr where tg_Name_HR = '@" + message.from_user.username +\
+                "'),0,'@" + message.from_user.username + "');"
+            with connection.cursor() as cursor:
+                try:
+                    cursor.execute(addUser)
+                    connection.commit()  # Подтверждение изменений в БД
+                except Error as error:
+                    response = 'Произошла ошибка, проверьте правильность введенных данных:\n' + str(error)
+                else:
+                    response = 'Запись добавлена'
     else:
-        response = 'Ты кто?'
-
-    split_msg = re.split(",|:|/>:swgPDGq:3Ce", message.text)
-    tosql = splitMessage(split_msg)
-    bot.send_message(chat_id=message.chat.id, text=response)
+        response = 'У вас нет права добавлять пользователя'
+    bot.send_message(chat_id=message.chat.id, text=response + '\n' + addUser)
 
 
 @bot.message_handler(content_types=['text'])
 def message_handler(message):
-    if action.setName == True:
+    global users
+    if users[message.from_user.id].setName == True:
         set_name(message)
     if 'V<S<=2hjr/ptgQ=' in message.text:
         add_hr(message)
@@ -141,23 +147,22 @@ def message_handler(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
-    global user, action
+    global users
     message_set_name = ''
-    action.stopped = True
     if call.message:
         if call.data == 'as in telegram':
-            user.name = call.from_user.first_name
-            message_set_name = 'Приятно познакомиться, ' + user.name + '!\nДля редактирования имени введи /setname'
-            action.stopped = False
+            users[call.from_user.id].name=call.from_user.first_name
+            message_set_name = 'Приятно познакомиться, ' + users[call.from_user.id].name+ '!\nДля редактирования имени введи /setname'
+            users[call.from_user.id].stopped = False
         elif call.data == 'new name':
             message_set_name = 'Введи новое имя'
-            action.setName = True
+            users[call.from_user.id].setName = True
         elif call.data == 'start survey':
             message_set_name = 'Начинаем опрос'
-            action.stopped = False
-            action.doingSurvey = True
+            users[call.from_user.id].stopped = False
+            users[call.from_user.id].doingSurvey = True
         elif call.data == 'cancel survey':
-            action.stopped = False
+            users[call.from_user.id].stopped = False
             message_set_name = 'Отменяем опрос'
         # remove inline buttons
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=message_set_name.format(call.message.from_user, bot.get_me()),
