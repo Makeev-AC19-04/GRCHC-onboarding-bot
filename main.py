@@ -1,8 +1,7 @@
 import telebot
 from telebot import types
 import time
-from mysql.connector import connect, Error
-import re
+import sql_requests
 
 token = '5570755905:AAHG6lllgMm8rOBHrm2sLHN9pp487BZh_Mk' #токен бота
 bot = telebot.TeleBot(token)
@@ -32,19 +31,20 @@ def main(message):
 @bot.message_handler(commands=['start'])
 def welcome(message):
     global users
-    with connect(
-            host="localhost",
-            user="root",
-            password="54321",
-    ) as connection:
-        #check
-        pass
-    users[message.from_user.id]=User()
-    bot.send_message(message.chat.id,
-                     "Привет!\nЯ - <b>{1.first_name}</b>, создан помочь тебе адаптироваться в нашей компании!".format(
-                         message.from_user, bot.get_me()),
-                     parse_mode='html')#, reply_markup=mainMenu)
-    main(message)
+    role = sql_requests.define_role(message)
+    if role == 'HR':
+        bot.send_message(message.chat.id, 'Вы HR, добавьте сотрудника с помощью '
+                                          'специальной команды')
+    elif role == 'user':
+        users[message.from_user.id]=User()
+        bot.send_message(message.chat.id,
+                         "Привет!\nЯ - <b>{1.first_name}</b>, создан помочь тебе адаптироваться в нашей компании!".format(
+                             message.from_user, bot.get_me()),
+                         parse_mode='html')
+        main(message)
+    else:
+        bot.send_message(message.chat.id, 'Простите, у вас нет права'
+                                          'пользоваться этим ботом')
 
 @bot.message_handler(commands=['setname'])
 def block_1(message):
@@ -72,35 +72,14 @@ def survey_1(message):
 def start_survey(message):
     sur_1={'Как вам первый день?'}
 
-def splitMessage(msg):
-    tosql = ''
-    for i in msg:
-        if i != '':
-            tosql += "'" + str(i) + "',"
-
-    return tosql[:-1]
-
 def add_hr(message): # Добавление hr в БД
-    split_msg = re.split(",|:|V<S<=2hjr/ptgQ=", message.text)
-    response = ''
-    tosql = "'@" + str(message.from_user.username) + "'," + splitMessage(split_msg)
-    with connect(host="localhost", user="root", password="54321") as connection:
-        addtobdcommand = 'INSERT INTO botdb.hr ' \
-                         '(tg_Name_HR,HR_name,recruiter_mail,Phone,_id_Subd_hr) ' \
-                         'VALUES (' + tosql + ");"
-        with connection.cursor() as cursor:
-            try:
-                cursor.execute(addtobdcommand)
-                connection.commit()  # Подтверждение изменений в БД
-            except Error as error:
-                response = 'Произошла ошибка, проверьте правильность введенных данных:\n' + str(error) + ' ' + tosql
-            else:
-                response = 'Запись добавлена'
+    response = sql_requests.add_hr(message)
     bot.send_message(chat_id=message.chat.id, text=response)
 
 def set_name(message):
     global users
     users[message.from_user.id].name = message.text
+    sql_requests.set_name(message.text, message.from_user.username)
     message_set_name = 'Приятно познакомиться, ' + users[message.from_user.id].name + '!\nДля редактирования имени введи /setname'
     bot.send_message(chat_id=message.chat.id, text=message_set_name)
     users[message.from_user.id].setName = False
@@ -108,42 +87,29 @@ def set_name(message):
 
 def add_user(message):
     response = '';
-    isHr=0
-    with connect(host="localhost", user="root", password="54321") as connection:
-        checkHR = 'SELECT EXISTS(SELECT * FROM botdb.hr ' \
-                         "WHERE tg_Name_HR = '@" + str(message.from_user.username) + "');"
-        with connection.cursor() as cursor:
-            cursor.execute(checkHR) # Проверка, является ли тот кто добавляет человека эйчаром
-            isHr = cursor.fetchall()[0][0]
-    if isHr == 1: # Формирование ответа в зависимости от того является ли человек эйчаром
-        tg_name = message.text.replace('/>:swgPDGq:3Ce ', '')
-        response = str(tg_name)
-        with connect(host="localhost", user="root", password="54321") as connection:
-            addUser = "INSERT INTO botdb.user (tg_Name, key_id_subd, started, id_HR) \
-            VALUES ('" + tg_name + "'," + "(select _id_Subd_hr from botdb.hr where tg_Name_HR = '@" + message.from_user.username +\
-                "'),0,'@" + message.from_user.username + "');"
-            with connection.cursor() as cursor:
-                try:
-                    cursor.execute(addUser)
-                    connection.commit()  # Подтверждение изменений в БД
-                except Error as error:
-                    response = 'Произошла ошибка, проверьте правильность введенных данных:\n' + str(error)
-                else:
-                    response = 'Запись добавлена'
+    if sql_requests.check_hr(message) == 1: # Формирование ответа в зависимости от того является ли человек эйчаром
+        response = sql_requests.add_user(message)
     else:
         response = 'У вас нет права добавлять пользователя'
-    bot.send_message(chat_id=message.chat.id, text=response + '\n' + addUser)
+    bot.send_message(chat_id=message.chat.id, text=response)
 
 
 @bot.message_handler(content_types=['text'])
 def message_handler(message):
     global users
-    if users[message.from_user.id].setName == True:
+    role = sql_requests.define_role(message)
+    if role == 'HR':
+        if '/>:swgPDGq:3Ce' in message.text:
+            add_user(message)
+    elif role == 'guest':
+        if 'V<S<=2hjr/ptgQ=' in message.text:
+            add_hr(message)
+    elif role == 'user':
         set_name(message)
-    if 'V<S<=2hjr/ptgQ=' in message.text:
-        add_hr(message)
-    if '/>:swgPDGq:3Ce' in message.text:
-        add_user(message)
+    #if users[message.from_user.id].setName == True:
+     #   set_name(message)
+
+
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
@@ -152,6 +118,7 @@ def callback_inline(call):
     if call.message:
         if call.data == 'as in telegram':
             users[call.from_user.id].name=call.from_user.first_name
+            sql_requests.set_name(call.from_user.first_name, call.from_user.username)
             message_set_name = 'Приятно познакомиться, ' + users[call.from_user.id].name+ '!\nДля редактирования имени введи /setname'
             users[call.from_user.id].stopped = False
         elif call.data == 'new name':
