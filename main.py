@@ -31,13 +31,13 @@ def main(message):
 @bot.message_handler(commands=['start'])
 def welcome(message):
     global users
-    role = sql_requests.define_role(message)
+    role = sql_requests.define_role(message) # Определяем роль
     if role == 'HR':
         bot.send_message(message.chat.id, 'Вы HR, добавьте сотрудника с помощью '
                                           'специальной команды')
     elif role == 'user':
-        if sql_requests.has_started(message) == 0:
-            sql_requests.set_started(message)
+        if sql_requests.get_status(message) == 'none':
+            sql_requests.set_status(message, 'started')
             users[message.from_user.id]=User()
             bot.send_message(message.chat.id,
                              "Привет!\nЯ - <b>{1.first_name}</b>, создан помочь тебе адаптироваться в нашей компании!".format(
@@ -45,7 +45,7 @@ def welcome(message):
                              parse_mode='html')
             main(message)
         else:
-            bot.send_message(message.chat.id, 'Бот уже запущен: ')
+            bot.send_message(message.chat.id, 'Бот уже запущен')
     else:
         bot.send_message(message.chat.id, 'Простите, у вас нет права'
                                           'пользоваться этим ботом')
