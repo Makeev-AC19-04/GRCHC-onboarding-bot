@@ -12,6 +12,8 @@ def main(message): # Главная функция, отвечающая за о
         time.sleep(5)
     bot.send_message(message.chat.id, 'Следующее сообщение')
     time.sleep(5)
+    bot.send_message(message.chat.id,
+                     sql_requests.get_subdvsn(message.from_user.username))
     bot.send_message(message.chat.id, 'Твой тг-id: ' + str(message.from_user.id))
     time.sleep(5)
     ask_survey_1(message)

@@ -118,7 +118,7 @@ def set_status(user, status): # Установить статус пользов
             cursor.execute(setstatus)
             connection.commit()
 
-def add_survey(user, survey_num, answer):
+def add_survey(user, survey_num, answer): # Добавить запись в опрос
     with connect(
             host="localhost",
             user="root",
@@ -131,7 +131,7 @@ def add_survey(user, survey_num, answer):
             cursor.execute(add_survey_to_sql)
             connection.commit()
 
-def set_survey(user, survey_num, question_num, answer):
+def set_survey(user, survey_num, question_num, answer): # Дополнить запись в опросе
     with connect(
             host="localhost",
             user="root",
@@ -143,3 +143,20 @@ def set_survey(user, survey_num, question_num, answer):
         with connection.cursor() as cursor:
             cursor.execute(set_answer)
             connection.commit()
+
+def get_subdvsn(user):
+    with connect(
+            host="localhost",
+            user="root",
+            password="54321",
+    ) as connection:
+        select_subdvsn = "SELECT * FROM botdb.subdivision WHERE idSubdivision = (SELECT"\
+        " key_id_subd FROM botdb.user WHERE tg_Name = '@" + user + "');"
+        print(select_subdvsn)
+        with connection.cursor() as cursor:
+            cursor.execute(select_subdvsn)
+            words = list(cursor.fetchall()[0])
+            print(words)
+            text_message = 'Вы работаете в: '+words[1] + ' \nпо адресу: '+\
+                           words[2]
+            return text_message
