@@ -160,3 +160,45 @@ def get_subdvsn(user):
             text_message = 'Вы работаете в: '+words[1] + ' \nпо адресу: '+\
                            words[2]
             return text_message
+
+def get_hr(user):
+    with connect(
+            host="localhost",
+            user="root",
+            password="54321",
+    ) as connection:
+        select_hr = "SELECT id_HR FROM botdb.user WHERE tg_Name = '@" + user + "';"
+        print(select_hr)
+        with connection.cursor() as cursor:
+            cursor.execute(select_hr)
+            hr=cursor.fetchall()[0][0]
+            return 'Твой HR: ' + hr
+
+def add_task(message):
+    split_msg = re.split(",|q3x9Z2K79D2|, ", message.text)
+    task = split_msg[-1]
+    user = split_msg[2]
+    print(task)
+    with connect(
+            host="localhost",
+            user="root",
+            password="54321",
+    ) as connection:
+        set_task = "UPDATE botdb.user SET task = '" + task +" 'WHERE tg_Name='" + user + "';"
+        print(set_task)
+        with connection.cursor() as cursor:
+            cursor.execute(set_task)
+            connection.commit()
+
+def get_task(user):
+    with connect(
+            host="localhost",
+            user="root",
+            password="54321",
+    ) as connection:
+        select_task = "SELECT task FROM botdb.user WHERE tg_Name = '@" + user + "';"
+        print(select_task)
+        with connection.cursor() as cursor:
+            cursor.execute(select_task)
+            task=cursor.fetchall()[0][0]
+            return 'Твои задачи на испытательный срок: ' + str(task or 'пока нет с:')
