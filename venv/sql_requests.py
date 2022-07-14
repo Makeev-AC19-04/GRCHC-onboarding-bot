@@ -12,10 +12,10 @@ def splitMessage(msg):
 def add_hr(message): # Добавление эйчара в базу данных
     split_msg = re.split(",|:|V<S<=2hjr/ptgQ=", message.text)
     response = ''
-    tosql = "'@" + str(message.from_user.username) + "'," + splitMessage(split_msg)
+    tosql = "'@" + str(message.from_user.username) + "'," + str(message.chat.id)
     with connect(host="localhost", user="root", password="54321") as connection:
         addtobdcommand = 'INSERT INTO botdb.hr ' \
-                         '(tg_Name_HR,HR_name,recruiter_mail,Phone,_id_Subd_hr) ' \
+                         '(tg_Name_HR,chat_id) ' \
                          'VALUES (' + tosql + ");"
         with connection.cursor() as cursor:
             try:
@@ -35,13 +35,10 @@ def check_hr(message): # Проверка, является ли данный п
             cursor.execute(checkHR) # Проверка, является ли тот кто добавляет человека эйчаром
             return cursor.fetchall()[0][0]
 
-def add_user(message): # Добавление пользователя в базу данных
-    tg_name = message.text.replace('/>:swgPDGq:3Ce ', '')
-    response = str(tg_name)
+def add_user(user): # Добавление пользователя в базу данных
     with connect(host="localhost", user="root", password="54321") as connection:
-        addUser = "INSERT INTO botdb.user (tg_Name, key_id_subd, id_HR, status) \
-                VALUES ('" + tg_name + "'," + "(select _id_Subd_hr from botdb.hr where tg_Name_HR = '@" + message.from_user.username + \
-                  "'),'@" + message.from_user.username + "','none');"
+        addUser = "INSERT INTO botdb.user (tg_Name, status) \
+                VALUES ('" + user + "', 'none')"
         with connection.cursor() as cursor:
             try:
                 cursor.execute(addUser)
@@ -161,18 +158,18 @@ def get_subdvsn(user):
                            words[2]
             return text_message
 
-def get_hr(user):
+def get_hr():
     with connect(
             host="localhost",
             user="root",
             password="54321",
     ) as connection:
-        select_hr = "SELECT id_HR FROM botdb.user WHERE tg_Name = '@" + user + "';"
+        select_hr = "SELECT chat_id FROM botdb.hr WHERE tg_Name_HR is not null;"
         print(select_hr)
         with connection.cursor() as cursor:
             cursor.execute(select_hr)
             hr=cursor.fetchall()[0][0]
-            return 'Твой HR: ' + hr
+            return hr
 
 def add_task(message):
     split_msg = re.split(",|q3x9Z2K79D2|, ", message.text)
@@ -202,3 +199,40 @@ def get_task(user):
             cursor.execute(select_task)
             task=cursor.fetchall()[0][0]
             return 'Твои задачи на испытательный срок: ' + str(task or 'пока нет с:')
+
+def add_request(user, chat_id):
+    with connect(
+            host="localhost",
+            user="root",
+            password="54321",
+    ) as connection:
+        req = "INSERT INTO botdb.requests(tg_Name, chat_id) VALUES ('@" + user + "', '" + str(chat_id) + "');"
+        print(req)
+        with connection.cursor() as cursor:
+            cursor.execute(req)
+            connection.commit()
+
+def get_request(user):
+    with connect(
+            host="localhost",
+            user="root",
+            password="54321",
+    ) as connection:
+        req = "SELECT chat_id FROM botdb.requests WHERE tg_Name = '" + user + "';"
+        print(req)
+        with connection.cursor() as cursor:
+            cursor.execute(req)
+            id=cursor.fetchall()[0][0]
+            return id
+
+def del_request(user):
+    with connect(
+            host="localhost",
+            user="root",
+            password="54321",
+    ) as connection:
+        req = "DELETE FROM botdb.requests WHERE tg_Name = '"+user+"';"
+        print(req)
+        with connection.cursor() as cursor:
+            cursor.execute(req)
+            connection.commit()

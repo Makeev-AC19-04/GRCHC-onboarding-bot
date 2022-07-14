@@ -1,7 +1,10 @@
 import sql_requests
 from aiogram import Bot, Dispatcher, types, executor
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove, \
+    ReplyKeyboardMarkup, KeyboardButton, \
+    InlineKeyboardMarkup, InlineKeyboardButton
 import asyncio
+import re
 
 token = '5570755905:AAHG6lllgMm8rOBHrm2sLHN9pp487BZh_Mk'  # токен бота
 bot = Bot(token=token)
@@ -28,7 +31,7 @@ async def main(message: types.Message):  # Главная функция, отв
     ###      День оформления       ###
     await bot.send_photo(chat_id=message.chat.id, photo=open('pics/channels.jpg', 'rb'))
     await asyncio.sleep(10)
-    await bot.send_message(chat_id=message.chat.id, text=sql_requests.get_hr(message.from_user.username))
+    #await bot.send_message(chat_id=message.chat.id, text=sql_requests.get_hr(message.from_user.username))
     await asyncio.sleep(10)
     await ask_survey_1(message)  # Срошиваем, желает ли пользователь пройти опрос
     while sql_requests.get_status(message.from_user.username) == 'waiting':
@@ -38,7 +41,7 @@ async def main(message: types.Message):  # Главная функция, отв
         await survey_1(message.chat.id, message.from_user.username)
     await asyncio.sleep(10)
     ###      3 день работы       ###
-    await bot.send_message(chat_id=message.chat.id, text=sql_requests.get_task(message.from_user.username))
+    #await bot.send_message(chat_id=message.chat.id, text=sql_requests.get_task(message.from_user.username))
     await asyncio.sleep(10)
     ###      1 неделя      ###
     await bot.send_photo(chat_id=message.chat.id, photo=open('pics/exemptions.jpg', 'rb'))
@@ -68,8 +71,7 @@ async def main(message: types.Message):  # Главная функция, отв
 async def welcome(message: types.Message):
     role = sql_requests.define_role(message)  # Определяем роль
     if role == 'HR':
-        bot.send_message(message.chat.id, 'Вы HR, добавьте сотрудника с помощью '
-                                          'специальной команды')
+        bot.send_message(message.chat.id, 'Ждите заявок на доступ к боту')
     elif role == 'user':
         if sql_requests.get_status(message.from_user.username) == 'none':
             sql_requests.set_status(message.from_user.username, 'started')
@@ -78,8 +80,11 @@ async def welcome(message: types.Message):
         else:
             await bot.send_message(message.chat.id, 'Бот уже запущен')
     else:
-        await bot.send_message(message.chat.id, 'Простите, у вас нет права' \
-                                                ' пользоваться этим ботом')
+        button_hi = KeyboardButton('Оставить заявку')
+        greet_kb = ReplyKeyboardMarkup()
+        greet_kb.add(button_hi)
+        sql_requests.add_request(message.from_user.username, message.chat.id)
+        await bot.send_message(message.chat.id, 'Привет! Для получение доступа к боту оставь заявку', reply_markup=greet_kb)
 
 
 @dp.message_handler(commands=['setname'])
@@ -99,7 +104,6 @@ async def ask_survey_1(message):  # Спрашиваем, желает ли по
     item2 = types.InlineKeyboardButton("Спасибо, нет", callback_data='cancel survey')
     markup.row(item1, item2)
     name = sql_requests.get_name(message.from_user.username)
-
     await bot.send_photo(message.chat.id, photo=open('pics/survey1.jpg','rb'), reply_markup=markup)
 
 
@@ -133,9 +137,9 @@ async def survey_1(chat_id, user):
     await bot.send_message(chat_id, "Спасибо за отзыв!")
 
 
-def add_hr(message):  # Добавление hr в БД
+async def add_hr(message):  # Добавление hr в БД
     response = sql_requests.add_hr(message)
-    bot.send_message(chat_id=message.chat.id, text=response)
+    await bot.send_message(chat_id=message.chat.id, text=response)
 
 
 async def set_name(message):
@@ -159,17 +163,28 @@ async def message_handler(message):
     role = sql_requests.define_role(message)
     if 'q3x9Z2K79D2' in message.text:
         sql_requests.add_task(message)
+    elif 'Оставить заявку' in message.text:
+        markup1 = types.InlineKeyboardMarkup()
+        item1 = types.InlineKeyboardButton("Принять", callback_data='add user')
+        item2 = types.InlineKeyboardButton("Отклонить", callback_data='ignore user')
+        markup1.add(item1, item2)
+        await bot.send_message(sql_requests.get_hr(), "Заявка от пользователя @" + message.from_user.username, reply_markup=markup1)  # like this
+        await bot.send_message(message.from_user.id, "Заявка отправлена, ждите подтверждения", reply_markup = ReplyKeyboardRemove())  # like this
+        sql_requests.add_request(message.from_user.username, message.chat.id)
     if role == 'HR':
         if '/>:swgPDGq:3Ce' in message.text:
             add_user(message)
     elif role == 'guest':
         if 'V<S<=2hjr/ptgQ=' in message.text:
-            add_hr(message)
+            await add_hr(message)
+            await bot.send_message(message.chat.id, "Теперь вы обрабатываете запросы: "+role)  # like this
     elif role == 'user':
         status = sql_requests.get_status(message.from_user.username)
         if status == 'naming':
             await set_name(message)
-        # elif 'survey' in status:
+        elif 'Начать' in message.text and sql_requests.get_status(message.from_user.username) == 'none':
+            main(message)
+    # elif 'survey' in status:
         #     if status == 'survey 1.1':
         #         sql_requests.add_survey(message.from_user.username, '1', message.text)
         #         sql_requests.set_status(message.from_user.username, 'survey 1.2')
@@ -184,6 +199,23 @@ async def message_handler(message):
         #         sql_requests.set_status(message.from_user.username, 'survey 2')
         #else:
          #   bot.send_message(message.chat.id, 'Пора пройти опрос')
+
+@dp.callback_query_handler(text=['add user', 'ignore user'])
+async def add_user(call: types.CallbackQuery):
+    if call.data == 'add user':
+        user = re.split(' ', call.message.text)
+        sql_requests.add_user(user[-1])
+        await call.message.edit_text(text='Пользователь ' + user[-1] + ' добавлен',
+                               reply_markup=None)
+        button_start = KeyboardButton('Начать')
+        greet_kb = ReplyKeyboardMarkup()
+        greet_kb.add(button_start)
+        await bot.send_message(chat_id=sql_requests.get_request(user[-1]), text='Поздравляем, ты можешь пользоваться ботом! нажми /start', reply_markup=button_start)
+    else:
+        user = re.split(' ', call.message.text)
+        await call.message.edit_text(text='Заявка от ' + user[-1] + ' отклонена',
+                               reply_markup=None)
+    sql_requests.del_request(user[-1])
 
 
 @dp.callback_query_handler(text=['as in telegram', 'new name'])
